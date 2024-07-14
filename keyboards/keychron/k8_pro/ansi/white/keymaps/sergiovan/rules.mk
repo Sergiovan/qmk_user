@@ -1,4 +1,5 @@
 SRC += state_machine.c
+SRC += state_machine.gen.c
 
 LTO_ENABLE = yes
 VIA_ENABLE = yes

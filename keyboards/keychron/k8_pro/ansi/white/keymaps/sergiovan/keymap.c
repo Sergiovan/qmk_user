@@ -16,7 +16,6 @@
 
 #include QMK_KEYBOARD_H // This comment is here to avoid clangd creating overly long clickable links
 
-#include "quiet_effect.h"
 #include "state_machine.h"
 
 #define DEBUG_LEDS false
@@ -75,15 +74,13 @@ void keyboard_post_init_user(void)
 bool process_record_user(uint16_t keycode, keyrecord_t *record)
 {
     if (led_matrix_get_mode() == LED_MATRIX_CUSTOM_custom_quiet && record->event.pressed) {
-        uint8_t mods = get_mods();
-        uint16_t keycode_mods = ((uint16_t)((((mods >> 4) != 0) << 4) | (mods | (mods >> 4))) << 8);
-        state_cb_t f = state_machine_advance(&state_machine, keycode | keycode_mods, keycode);
+        state_cb_t f = state_machine_advance(&state_machine, keycode);
         if (f) f();
     }
     return true;
 }
 
-#ifdef DEBUG_LEDS
+#if DEBUG_LEDS
 bool led_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max)
 {
     if (state_machine.state.current_state_path == STATE_NAME(NONE)) {
