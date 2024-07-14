@@ -17,6 +17,9 @@
 #include QMK_KEYBOARD_H // This comment is here to avoid clangd creating overly long clickable links
 
 #include "quiet_effect.h"
+#include "state_machine.h"
+
+#define DEBUG_LEDS false
 
 // clang-format off
 enum layers{
@@ -61,25 +64,35 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
 };
 
+static state_machine_t state_machine;
+
 void keyboard_post_init_user(void)
 {
     led_matrix_mode_noeeprom(LED_MATRIX_CUSTOM_custom_quiet);
+    state_machine_init(&state_machine);
 }
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record)
 {
     if (led_matrix_get_mode() == LED_MATRIX_CUSTOM_custom_quiet && record->event.pressed) {
-        if (keycode == KC_9) {
-            set_animation_state(QUIET_ANIMATION_NICE);
-        } else {
-            set_animation_state(QUIET_ANIMATION_CLEAR);
-        }
+        uint8_t mods = get_mods();
+        uint16_t keycode_mods = ((uint16_t)((((mods >> 4) != 0) << 4) | (mods | (mods >> 4))) << 8);
+        state_cb_t f = state_machine_advance(&state_machine, keycode | keycode_mods, keycode);
+        if (f) f();
     }
     return true;
 }
 
-// bool led_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max)
-// {
-//     led_matrix_set_value(g_led_config.matrix_co[0][0], 50);
-//     return true;
-// }
+#ifdef DEBUG_LEDS
+bool led_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max)
+{
+    if (state_machine.state.current_state_path == STATE_NAME(NONE)) {
+        led_matrix_set_value(g_led_config.matrix_co[5][16], 128);
+        led_matrix_set_value(g_led_config.matrix_co[5][14], 0);
+    } else if (state_machine.state.current_state_path == STATE_NAME(SIXTY_NINE)) {
+        led_matrix_set_value(g_led_config.matrix_co[5][14], 128);
+        led_matrix_set_value(g_led_config.matrix_co[5][16], 0);
+    }
+    return true;
+}
+#endif

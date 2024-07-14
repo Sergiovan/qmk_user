@@ -6,10 +6,10 @@
 
 #include "quiet_effect.h"
 
-static quiet_animation_state_t quiet_animation_state = QUIET_ANIMATION_CLEAR;
+static quiet_animation_state_e quiet_animation_state = QUIET_ANIMATION_CLEAR;
 static bool quiet_animation_state_changed = false;
 
-void set_animation_state(quiet_animation_state_t state) {
+void set_animation_state(quiet_animation_state_e state) {
     quiet_animation_state = state;
     quiet_animation_state_changed = true;
 }
