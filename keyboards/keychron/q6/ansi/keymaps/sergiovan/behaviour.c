@@ -47,7 +47,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     rgb_matrix_set_color(g_led_config.matrix_co[5][18], 0xFF * rgb_matrix_is_enabled(), 0xFF * rgb_matrix_is_enabled(), rgb_matrix_get_val());
     if (rgb_matrix_get_mode() == RGB_MATRIX_NONE) {
-        return true;
+        return false;
     }
 
     switch (get_highest_layer(layer_state)) {
@@ -64,6 +64,10 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
             rgb_matrix_set_color(g_led_config.matrix_co[5][17], 0xFF, 0, 0xFF);
             break;
     }
-    return true;
+    return false;
+}
+#else
+bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
+    return false;
 }
 #endif
