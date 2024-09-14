@@ -1,5 +1,5 @@
 #pragma once
-#include QMK_KEYBOARD_H // A little comment to avoid weird underlines :)
+#include QMK_KEYBOARD_H // IWYU pragma: export // A little comment to avoid weird underlines :)
 
 #define DEBUG_FUNCTIONS false
 

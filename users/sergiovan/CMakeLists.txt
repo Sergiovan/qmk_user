@@ -61,5 +61,28 @@ if(${CMAKE_COVERAGE})
   add_dependencies(run_coverage circular_buffer_test)
 endif()
 
+if(NOT QMK_LOCATION)
+  message(FATAL_ERROR "Must set QMK_LOCATION to the location of QMK to find lib8tion")
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(circular_buffer_test)
+
+add_executable(perlin_noise_test
+  "noise/noise_gen.c"
+  "noise/noise_gen.test.c"
+)
+
+target_include_directories(perlin_noise_test
+  PRIVATE
+  "${QMK_LOCATION}"
+)
+
+target_compile_options(
+  perlin_noise_test PRIVATE
+)
+
+target_link_libraries(perlin_noise_test
+  raylib
+  m
+)

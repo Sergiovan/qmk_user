@@ -42,39 +42,63 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             if (record->event.pressed) {
                 sgv_animation_add_animation((animation_t){
                     .type         = WAVE,
-                    .payload_type = PAYLOAD_COLOR_HSV,
+                    .payload_type = PAYLOAD_COLOR_SHIMMER,
 
                     .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Earth
-                    .ticks     = timer_read(),
+                    .ticks     = timer_read32(),
                     .done      = false,
 
-                    .hsv_color = (HSV){random8(), 255, 255}});
+                    .keymap = NULL,
+
+                    // .hsv_color = (HSV){random8(), 255, 255},
+                    .raw = 0,
+                });
             }
             break;
         case SGV_TEST_SOLID:
             if (record->event.pressed) {
+                // sgv_animation_add_animation((animation_t){
+                //     .type         = SHIMMER,
+                //     .payload_type = PAYLOAD_NONE,
+
+                //     .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Sparkles
+                //     .ticks     = timer_read32(),
+                //     .done      = false,
+
+                //     .keymap = NULL,
+
+                //     .raw = 0,
+                // });
                 sgv_animation_add_animation((animation_t){
                     .type         = WAVE_SOLID,
                     .payload_type = PAYLOAD_COLOR_HSV,
 
                     .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Sparkles
-                    .ticks     = timer_read(),
+                    .ticks     = timer_read32(),
                     .done      = false,
 
-                    .hsv_color = (HSV){random8(), 255, 255}});
+                    .keymap = NULL,
+
+                    .hsv_color = (HSV){random8(), 255, 255},
+                    // .raw = 0,
+                });
             }
             break;
         case SGV_TEST_WAVE:
             if (record->event.pressed) {
                 sgv_animation_add_animation((animation_t){
                     .type         = WAVE_SOLID_2,
-                    .payload_type = PAYLOAD_COLOR_HSV,
+                    .payload_type = PAYLOAD_COLOR_SHIMMER_SECOND,
 
                     .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Rocket
-                    .ticks     = timer_read(),
+                    .ticks     = timer_read32(),
                     .done      = false,
 
-                    .hsv_color_arr = {(HSV){random8(), 255, 255}, (HSV){random8(), 255, 255}}});
+                    .keymap = NULL,
+
+                    .hsv_color = (HSV){random8(), 255, 255},
+                    // .raw = 0,
+                });
             }
             break;
         case SGV_TEST_CLEAR:
@@ -84,10 +108,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                     .payload_type = PAYLOAD_COLOR_HSV,
 
                     .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Pica
-                    .ticks     = timer_read(),
+                    .ticks     = timer_read32(),
                     .done      = false,
 
+                    .keymap = NULL,
+
                     .hsv_color = (HSV){0, 0, 0}});
+            }
+            for (int i = 0; i < 10; ++i) {
+                LED_DEBUG(i, HSV_BLACK);
             }
             break;
         default:
@@ -98,6 +127,52 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     }
 
     return true;
+}
+
+layer_state_t layer_state_set_user(layer_state_t state) {
+    layer_state_t highest = get_highest_layer(state);
+    if (highest == BASE) {
+        sgv_animation_add_animation((animation_t){
+            .type         = WAVE_SOLID,
+            .payload_type = PAYLOAD_NONE,
+
+            .key_index = g_led_config.matrix_co[5][12], // FN
+            .ticks     = timer_read32(),
+            .done      = false,
+
+            .keymap = NULL,
+
+            .raw = 0,
+        });
+    } else if (highest == FN) {
+        sgv_animation_add_animation((animation_t){
+            .type         = WAVE_SOLID,
+            .payload_type = PAYLOAD_COLOR_HSV,
+
+            .key_index = g_led_config.matrix_co[5][12], // FN
+            .ticks     = timer_read32(),
+            .done      = false,
+
+            .keymap = &keymaps[FN],
+
+            .hsv_color = (HSV){HSV_RED},
+        });
+    } else if (highest == SECRET) {
+        sgv_animation_add_animation((animation_t){
+            .type         = WAVE_SOLID,
+            .payload_type = PAYLOAD_COLOR_SHIMMER,
+
+            .key_index = g_led_config.matrix_co[5][12], // FN
+            .ticks     = timer_read32(),
+            .done      = false,
+
+            .keymap = &keymaps[SECRET],
+
+            .raw = 0,
+        });
+    }
+
+    return state;
 }
 
 #if DEBUG_FUNCTIONS
