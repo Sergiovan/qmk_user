@@ -2,15 +2,19 @@
 
 #include <string.h>
 
+/**
+ * @brief Circular buffer structure. Allows for easy random access,
+ * insertion and deletion at either end.
+ */
 typedef struct circular_buffer {
-    void* buffer; // Pointer to data
+    void* buffer; /* Pointer to data */
 
-    uint8_t elems;     // Size of buffer in elements
-    uint8_t elem_size; // Size of each element
+    uint8_t elems;     /* Size of buffer in elements */
+    uint8_t elem_size; /* Size of each element */
 
-    uint8_t length; // Amount of elements in the buffer
-    uint8_t begin;  // Index of first element, inclusive
-    uint8_t end;    // Index of last element, inclusive
+    uint8_t length; /* Amount of elements in the buffer */
+    uint8_t begin;  /* Index of first element, inclusive */
+    uint8_t end;    /* Index of last element, inclusive */
 } circular_buffer_t;
 
 const size_t circular_buffer_type_size = sizeof(circular_buffer_t);
@@ -45,6 +49,11 @@ bool circular_buffer_new(void* cb_location, size_t cb_location_size, void* buffe
     return true;
 }
 
+/**
+ * @brief Convenience function that moves the end pointer forward
+ *
+ * @param cb Circular buffer
+ */
 static inline void increase_end(circular_buffer_t* cb) {
     if (!cb) return;
 
@@ -55,6 +64,11 @@ static inline void increase_end(circular_buffer_t* cb) {
     }
 }
 
+/**
+ * @brief Convenience function that moves the end pointer backward
+ *
+ * @param cb Circular buffer
+ */
 static inline void decrease_end(circular_buffer_t* cb) {
     if (!cb) return;
 
@@ -65,6 +79,11 @@ static inline void decrease_end(circular_buffer_t* cb) {
     }
 }
 
+/**
+ * @brief Convenience function that moves the start pointer forward
+ *
+ * @param cb Circular buffer
+ */
 static inline void increase_begin(circular_buffer_t* cb) {
     if (!cb) return;
 
@@ -75,6 +94,11 @@ static inline void increase_begin(circular_buffer_t* cb) {
     }
 }
 
+/**
+ * @brief Convenience function that moves the start pointer backward
+ *
+ * @param cb Circular buffer
+ */
 static inline void decrease_begin(circular_buffer_t* cb) {
     if (!cb) return;
 
@@ -85,6 +109,15 @@ static inline void decrease_begin(circular_buffer_t* cb) {
     }
 }
 
+/**
+ * @brief Convenience function that retrieves an element of the buffer without checking
+ *        if it exists or not, or if it is in bounds. Indexed into the buffer directly,
+ *        without using start or end pointers
+ *
+ * @param cb Circular buffer
+ * @param index Index of element to retrieve
+ * @return void* Pointer to start of element
+ */
 static inline void* at_unsafe(circular_buffer_t* cb, uint8_t index) {
     if (!cb) return NULL;
 

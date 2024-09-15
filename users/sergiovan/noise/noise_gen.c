@@ -18,12 +18,28 @@ static uint8_t hash[] = {
     115, 184, 21,  233, 58,  129, 233, 142, 39,  128, 211, 118, 137, 139, 255, 114, 20,  218, 113, 154, 27,  127,
     246, 250, 1,   8,   198, 250, 209, 92,  222, 173, 21,  88,  102, 219};
 
+/**
+ * @brief Hashes x and y together using the hash table
+ *
+ * @param x x value of perlin 2d position
+ * @param y y value of perlin 2d position
+ * @return uint8_t The hash of (x, y)
+ */
 static uint8_t noise2(int32_t x, int32_t y) {
     uint8_t tmp = hash[(y + SEED) & 255];
     return hash[(tmp + x) & 255];
 }
 
 // x, y = u8, s = u16q16
+
+/**
+ * @brief Smoothly interpolates between x and y
+ *
+ * @param x One end of the interpolation range
+ * @param y Other end of the interpolation range
+ * @param s Interpolation value, in u16q16
+ * @return uint8_t Interpolated value
+ */
 inline static uint8_t smooth_inter(uint8_t x, uint8_t y, uint16_t s) {
     uint32_t buff = ((uint64_t)s * (uint64_t)s);               // u32q32
     buff          = buff * ((3ULL << 16ULL) - 2 * s) >> 16ULL; // Keep it u32q32
@@ -37,6 +53,14 @@ inline static uint8_t smooth_inter(uint8_t x, uint8_t y, uint16_t s) {
 }
 
 // x, y = i32q16
+
+/**
+ * @brief Get one noise data point
+ *
+ * @param x x value of the perlin 2D noise, in i32q16
+ * @param y y value of the perlin 2D noise, in i32q16
+ * @return uint8_t Perlin noise at location (x, y)
+ */
 inline static uint8_t noise2d(int32_t x, int32_t y) {
     // i16
     int16_t x_int = x >> 16;
@@ -56,6 +80,7 @@ inline static uint8_t noise2d(int32_t x, int32_t y) {
 }
 
 // x, y = i32q0, freq = i16q16
+
 uint8_t perlin2d_fixed(int32_t x, int32_t y, int32q16_t freq) {
     return noise2d(x * freq, y * freq);
 }
