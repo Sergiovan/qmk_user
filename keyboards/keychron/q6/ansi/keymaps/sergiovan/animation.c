@@ -66,10 +66,13 @@ static HSV      calc_state[LED_COUNT] = {{0}};
 
 typedef enum apply_res : uint8_t {
     APPLY_OK,         // Apply
-    APPLY_CLEAR_THIS, // Apply and remove this element from the buffer
-    APPLY_NEW_BASE,   // Apply and remove all elements before this one from the buffer
+    APPLY_CLEAR_THIS, // Apply and remove this element from the buffer if it's the
+                      // first one
+    APPLY_NEW_BASE,   // Apply and remove all elements before this one from the
+                      // buffer
     BECOME_FIRST,     // Remove all other previous elements from the buffer
-    BECOME_SHIMMER,   // Remove this element from the buffer if it's the first one, and convert animation into shimmer
+    BECOME_SHIMMER,   // Remove this element from the buffer if it's the first one,
+                      // and convert animation into shimmer
 } apply_res_e;
 
 static inline void clear_all_state(void) {
@@ -88,8 +91,8 @@ static inline void clear_calc_state(void) {
     memcpy(&calc_state, &base_state, sizeof base_state);
 }
 
-static inline bool hsv_is_black(HSV *color) {
-    return color->v == 0 && color->s == 0;
+static inline bool hsv_is_off(HSV color) {
+    return color.v == 0;
 }
 
 static inline uint8_t get_perlin(uint8_t x, uint8_t y, uint32_t t) {
@@ -116,21 +119,27 @@ static inline bool animation_key_in_keymap(animation_t *animation, uint8_t led) 
     return true;
 }
 
-static inline HSV animation_get_hsv_indexed(animation_t *animation, uint8_t led, [[maybe_unused]] uint8_t index) {
+static HSV animation_get_hsv_indexed(animation_t *animation, uint8_t led, uint8_t index) {
     if (!animation_key_in_keymap(animation, led)) {
-        return calc_state[led];
+        index += ANIMATION_HSV_COLOR_BASE_N;
     }
 
-    switch (animation->payload_type) {
-        case PAYLOAD_COLOR_HSV:
-            return animation->hsv_color;
-        case PAYLOAD_COLOR_HSV_2:
-            return animation->hsv_color_arr[index];
-        case PAYLOAD_COLOR_DEFAULT:
+    if (index >= ANIMATION_HSV_COLOR_COUNT) {
+        index = ANIMATION_HSV_COLOR_BASE;
+    }
+
+    animation_color_t color = animation->hsv_colors[index];
+
+    switch (color.special) {
+        case ANIMATION_COLOR_NONE:
+            return color.hsv;
+        case ANIMATION_COLOR_DEFAULT:
             return rgb_matrix_get_hsv();
-        case PAYLOAD_COLOR_RANDOM:
+        case ANIMATION_COLOR_TRANS:
+            return calc_state[led];
+        case ANIMATION_COLOR_RANDOM:
             return (HSV){random8(), 0xFF, 0xFF};
-        case PAYLOAD_COLOR_RANDOM_NOISE: {
+        case ANIMATION_COLOR_NOISE: {
             uint8_t x = g_led_config.point[led].x;
             uint8_t y = g_led_config.point[led].y;
 
@@ -138,38 +147,25 @@ static inline HSV animation_get_hsv_indexed(animation_t *animation, uint8_t led,
 
             return (HSV){hue, 0xFF, 0xFF};
         }
-        case PAYLOAD_COLOR_SHIMMER: {
-        shimmer_color:;
+        case ANIMATION_COLOR_SHIMMER: {
             uint8_t x = g_led_config.point[led].x;
             uint8_t y = g_led_config.point[led].y;
 
-            uint32_t active_for = timer_elapsed32(animation->ticks);
-            active_for /= (uint16_t)rgb_matrix_get_speed() + 1;
+            uint32_t t = timer_read32() >> 5;
 
-            uint8_t hue = get_perlin(x, y, active_for);
+            t = (t * (1 + ((uint64_t)rgb_matrix_get_speed()))) >> 8;
+
+            uint8_t hue = get_perlin(x, y, t);
 
             return (HSV){.h = hue, .s = 0xFF, .v = 0xFF};
         }
-        case PAYLOAD_COLOR_SHIMMER_FIRST:
-            if (index == 0) {
-                goto shimmer_color;
-            } else {
-                return animation->hsv_color;
-            }
-        case PAYLOAD_COLOR_SHIMMER_SECOND:
-            if (index == 1) {
-                goto shimmer_color;
-            } else {
-                return animation->hsv_color;
-            }
-        case PAYLOAD_NONE:
-        default:
-            return (HSV){0, 0, 0};
     }
+
+    return (HSV){HSV_GOLD}; // Cannot be reached, but will signify something went wrong
 }
 
-static inline HSV animation_get_hsv(animation_t *animation, [[maybe_unused]] uint8_t led) {
-    return animation_get_hsv_indexed(animation, led, 0);
+static inline HSV animation_get_hsv(animation_t *animation, uint8_t led) {
+    return animation_get_hsv_indexed(animation, led, ANIMATION_HSV_COLOR_BASE);
 }
 
 typedef struct wave_info {
@@ -189,52 +185,97 @@ static inline wave_info_t animation_wave_get_key_value(animation_t *animation, u
     /// Distance to wave
     uint8_t diff = llabs(dist - wave_radius);
 
-    bool in_wave = diff < WAVE_THICKNESS;
-    val          = in_wave ? 0xFF - ease8InOutQuad(qmul8(diff, WAVE_THICKNESS_FACTOR)) : 0;
+    bool in_wave     = diff < WAVE_THICKNESS;
+    bool past_radius = wave_radius > dist;
+    if (in_wave) {
+        if (!past_radius) {
+            val = ease8InOutQuad(0xFF - qmul8(diff, WAVE_THICKNESS_FACTOR));
+        } else {
+            val = ease8InOutQuad(qmul8(diff, WAVE_THICKNESS_FACTOR));
+        }
+    } else {
+        if (!past_radius) {
+            val = 0;
+        } else {
+            val = 255;
+        }
+    }
 
     return (wave_info_t){
         .val         = val,
         .in_wave     = in_wave,
-        .past_radius = wave_radius > dist,
+        .past_radius = past_radius,
     };
 }
 
-apply_res_e apply_animation(animation_t *animation, bool first, bool finish) {
-    if (animation->done) {
-        return first ? APPLY_CLEAR_THIS : APPLY_OK;
+static inline bool can_apply_new_base(animation_t *animation) {
+    animation_color_t(*colors)[4] = &animation->hsv_colors;
+
+    if (animation->type >= WAVE) {
+        // Uses colors 1 and 2
+        if (animation->keymap == NULL) {
+            // No holes
+            return (*colors)[ANIMATION_HSV_COLOR_BASE].special != ANIMATION_COLOR_TRANS &&
+                   (*colors)[ANIMATION_HSV_COLOR_RESULT].special != ANIMATION_COLOR_TRANS;
+        } else {
+            return (*colors)[ANIMATION_HSV_COLOR_BASE].special != ANIMATION_COLOR_TRANS &&
+                   (*colors)[ANIMATION_HSV_COLOR_RESULT].special != ANIMATION_COLOR_TRANS &&
+                   (*colors)[ANIMATION_HSV_COLOR_BASE_N].special != ANIMATION_COLOR_TRANS &&
+                   (*colors)[ANIMATION_HSV_COLOR_RESULT_N].special != ANIMATION_COLOR_TRANS;
+        }
+    } else {
+        if (animation->keymap == NULL) {
+            // No holes
+            return (*colors)[ANIMATION_HSV_COLOR_BASE].special != ANIMATION_COLOR_TRANS;
+        } else {
+            return (*colors)[ANIMATION_HSV_COLOR_BASE].special != ANIMATION_COLOR_TRANS &&
+                   (*colors)[ANIMATION_HSV_COLOR_BASE_N].special != ANIMATION_COLOR_TRANS;
+        }
+    }
+}
+
+static inline uint8_t clean_map8(uint8_t in, uint8_t a, uint8_t b) {
+    if (a < b) {
+        return map8(in, a, b);
+    } else if (b < a) {
+        return map8(255 - in, b, a);
+    } else {
+        return a;
+    }
+}
+
+// TODO Make time pass through to all animations
+// TODO Make time speed-dependent in some way, so I don't need to worry about it inside each animation
+// TODO Make algorithm faster by doing only the current batch of LEDs
+// TODO Remove SHIMMER and add CONTINUOUS type
+// TODO Optimize SHIMMER color to be almost equal to SHIMMER mode
+static apply_res_e apply_animation(animation_t *animation, bool first, bool finish) {
+    if (!timer_expired32(timer_read32(), animation->ticks)) {
+        return APPLY_OK;
     }
 
+    if (animation->done) {
+        finish = true;
+    }
+
+    bool new_base = first || can_apply_new_base(animation);
+
     switch (animation->type) {
-        case CLEAR_KEY:
-            calc_state[animation->key_index] = (HSV){0, 0, 0};
-            if (first) {
-                base_state[animation->key_index] = (HSV){0, 0, 0};
-                return APPLY_CLEAR_THIS;
-            } else {
-                return APPLY_OK;
-            }
-        case CLEAR_ALL:
-            clear_all_state();
-            return APPLY_NEW_BASE;
         case SOLID_KEY:
             calc_state[animation->key_index] = animation_get_hsv(animation, animation->key_index);
-            if (first) {
+            if (new_base) {
                 base_state[animation->key_index] = animation_get_hsv(animation, animation->key_index);
-                return APPLY_CLEAR_THIS;
-            } else {
-                return APPLY_OK; // IWYU pragma: export
             }
+            return APPLY_CLEAR_THIS;
         case SOLID_ALL:
             for (uint8_t i = 0; i < LED_COUNT; ++i) {
                 HSV new_c     = animation_get_hsv(animation, i);
                 calc_state[i] = new_c;
-                base_state[i] = new_c;
+                if (new_base) {
+                    base_state[i] = new_c;
+                }
             }
-            return APPLY_NEW_BASE;
-        case WAVE_SOLID:
-            [[fallthrough]];
-        case WAVE_SOLID_2:
-            [[fallthrough]];
+            return new_base ? APPLY_NEW_BASE : APPLY_OK;
         case WAVE: {
             // u32q16
             const uint32_t wave_time_ms   = 400 << 16; // It takes 400 MS at most
@@ -260,111 +301,86 @@ apply_res_e apply_animation(animation_t *animation, bool first, bool finish) {
             radius = ((uint64_t)radius * u32q16_255_400) >> 32;
 
             for (uint8_t i = 0; i < LED_COUNT; ++i) {
-                HSV current_col = calc_state[i];
+                wave_info_t info = animation_wave_get_key_value(animation, i, radius);
+                HSV         current_col;
+                HSV         target_col;
 
-                HSV         target_col = animation_get_hsv(animation, i);
-                wave_info_t info       = animation_wave_get_key_value(animation, i, radius);
-
-                if (info.in_wave) {
+                if (info.in_wave || !info.past_radius) {
                     any_left = true;
-                    if (info.past_radius) {
-                        if (animation->type == WAVE_SOLID) {
-                            current_col = target_col;
-                        } else if (animation->type == WAVE_SOLID_2) {
-                            current_col = animation_get_hsv_indexed(animation, i, 1);
-                        }
-                    }
-                } else {
-                    if (info.past_radius) {
-                        if (animation->type == WAVE_SOLID) {
-                            calc_state[i] = target_col;
-                        } else if (animation->type == WAVE_SOLID_2) {
-                            calc_state[i] = animation_get_hsv_indexed(animation, i, 1);
-                        }
-                    } else {
-                        any_left = true;
-                    }
-                    continue;
                 }
 
-                bool current_black = hsv_is_black(&current_col);
-                bool target_black  = hsv_is_black(&target_col);
-
-                if (current_black && target_black) {
-                    // If the start and end colors are OFF, then just keep the key off
-                    calc_state[i].v = 0;
-                } else if (current_black) {
-                    // If the start color is OFF, just wake up the color slowly
-                    calc_state[i]   = target_col;
-                    calc_state[i].v = map8(info.val, 0, target_col.v);
-                } else if (target_black) {
-                    // If the end color is OFF, just turn off the color slowly
-                    calc_state[i]   = current_col;
-                    calc_state[i].v = map8(255 - info.val, 0, current_col.v);
+                if (!info.past_radius) {
+                    current_col = calc_state[i];
+                    target_col  = animation_get_hsv_indexed(animation, i, ANIMATION_HSV_COLOR_BASE);
                 } else {
-                    if (current_col.h < target_col.h) {
-                        calc_state[i].h = map8(info.val, current_col.h, target_col.h);
-                    } else {
-                        calc_state[i].h = map8(255 - info.val, target_col.h, current_col.h);
-                    }
+                    current_col = animation_get_hsv_indexed(animation, i, ANIMATION_HSV_COLOR_BASE);
+                    target_col  = animation_get_hsv_indexed(animation, i, ANIMATION_HSV_COLOR_RESULT);
+                }
 
-                    if (current_col.s < target_col.s) {
-                        calc_state[i].s = map8(info.val, current_col.s, target_col.s);
-                    } else {
-                        calc_state[i].s = map8(255 - info.val, target_col.s, current_col.s);
-                    }
+                bool current_off = hsv_is_off(current_col);
+                bool target_off  = hsv_is_off(target_col);
 
-                    if (current_col.v < target_col.v) {
-                        calc_state[i].v = map8(info.val, current_col.v, target_col.v);
-                    } else {
-                        calc_state[i].v = map8(255 - info.val, target_col.v, current_col.v);
-                    }
+                if (current_off && !target_off) {
+                    current_col   = target_col;
+                    current_col.v = 0;
+                } else if (!current_off && target_off) {
+                    target_col   = current_col;
+                    target_col.v = 0;
+                }
+
+                calc_state[i].h = clean_map8(info.val, current_col.h, target_col.h);
+                calc_state[i].s = clean_map8(info.val, current_col.s, target_col.s);
+                calc_state[i].v = clean_map8(info.val, current_col.v, target_col.v);
+
+                if (calc_state[i].v == 0) {
+                    calc_state[i].h = calc_state[i].s = 0;
                 }
             }
 
             if (!any_left || active_for == wave_time_ms) {
-                animation->done = true;
-                if (animation->type == WAVE_SOLID || animation->type == WAVE_SOLID_2) {
-                    if (animation->payload_type == PAYLOAD_COLOR_SHIMMER ||
-                        animation->payload_type == PAYLOAD_COLOR_SHIMMER_SECOND) {
-                        return BECOME_SHIMMER;
-                    } else {
-                        for (uint8_t i = 0; i < LED_COUNT; ++i) {
-                            HSV new_c     = animation_get_hsv_indexed(animation, i, 1);
-                            calc_state[i] = new_c;
+                animation->done          = true;
+                animation_color_t target = animation->hsv_colors[ANIMATION_HSV_COLOR_RESULT]; // Intended color
+                if (target.special == ANIMATION_COLOR_SHIMMER) {
+                    return BECOME_SHIMMER;
+                } else {
+                    for (uint8_t i = 0; i < LED_COUNT; ++i) {
+                        HSV new_c     = animation_get_hsv_indexed(animation, i, ANIMATION_HSV_COLOR_RESULT);
+                        calc_state[i] = new_c;
+                        if (new_base) {
                             base_state[i] = new_c;
                         }
-                        return APPLY_NEW_BASE;
                     }
-                } else {
-                    return first ? APPLY_CLEAR_THIS : APPLY_OK;
+                    return new_base ? APPLY_NEW_BASE : APPLY_OK;
                 }
             }
 
             return APPLY_OK;
         }
         case SHIMMER: {
-            uint32_t active_for = timer_elapsed32(animation->ticks);
-            active_for /= (uint16_t)rgb_matrix_get_speed() + 1;
+            uint32_t t = timer_read32() >> 5;
+
+            t = (t * (1 + ((uint64_t)rgb_matrix_get_speed()))) >> 8;
 
             for (uint8_t i = 0; i < LED_COUNT; ++i) {
                 if (animation_key_in_keymap(animation, i)) {
                     uint8_t x = g_led_config.point[i].x;
                     uint8_t y = g_led_config.point[i].y;
 
-                    uint8_t hue = get_perlin(x, y, active_for);
+                    uint8_t hue = get_perlin(x, y, t);
 
                     calc_state[i] = (HSV){.h = hue, .s = 0xFF, .v = 0xFF};
+                } else {
+                    calc_state[i] = animation->hsv_colors[ANIMATION_HSV_COLOR_BASE_N].hsv;
                 }
             }
-            return APPLY_OK;
+            return (new_base && !first) ? BECOME_FIRST : APPLY_OK;
         }
         default:
             return APPLY_OK;
     }
 }
 
-bool apply_calc_state(effect_params_t *params) {
+static inline bool apply_calc_state(effect_params_t *params) {
     RGB_MATRIX_USE_LIMITS(led_min, led_max);
 
     for (uint8_t i = led_min; i < led_max; ++i) {
@@ -380,6 +396,181 @@ bool apply_calc_state(effect_params_t *params) {
 }
 
 /* Public functions */
+
+animation_color_t animation_color_hsv(HSV hsv) {
+    return (animation_color_t){
+        .hsv     = hsv,
+        .special = ANIMATION_COLOR_NONE,
+    };
+}
+
+animation_color_t animation_color_special(animation_color_special_e special) {
+    return (animation_color_t){
+        .hsv     = {HSV_BLACK},
+        .special = special,
+    };
+}
+
+animation_t animation_clear(void) {
+    return (animation_t){
+        .type = SOLID_ALL,
+
+        .key_index = 0,
+        .done      = false,
+        .ticks     = timer_read32(),
+
+        .keymap = NULL,
+
+        .hsv_colors =
+            {
+                animation_color_hsv((HSV){HSV_BLACK}),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+            },
+    };
+}
+
+animation_t animation_clear_key(uint8_t key_index) {
+    return (animation_t){
+        .type = SOLID_KEY,
+
+        .key_index = key_index,
+        .done      = false,
+        .ticks     = timer_read32(),
+
+        .keymap = NULL,
+
+        .hsv_colors =
+            {
+                animation_color_hsv((HSV){HSV_BLACK}),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+            },
+    };
+}
+
+animation_t animation_solid(HSV color) {
+    return (animation_t){
+        .type = SOLID_ALL,
+
+        .key_index = 0,
+        .done      = false,
+        .ticks     = timer_read32(),
+
+        .keymap = NULL,
+
+        .hsv_colors =
+            {
+                animation_color_hsv(color),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+            },
+    };
+}
+
+animation_t animation_solid_key(uint8_t key_index, HSV color) {
+    return (animation_t){
+        .type = SOLID_KEY,
+
+        .key_index = key_index,
+        .done      = false,
+        .ticks     = timer_read32(),
+
+        .keymap = NULL,
+
+        .hsv_colors =
+            {
+                animation_color_hsv(color),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+            },
+    };
+}
+
+animation_t animation_wave(uint8_t start_key_index, animation_color_t wave_color) {
+    return (animation_t){
+        .type = WAVE,
+
+        .key_index = start_key_index,
+        .done      = false,
+        .ticks     = timer_read32(),
+
+        .keymap = NULL,
+
+        .hsv_colors =
+            {
+                wave_color,
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+            },
+    };
+}
+
+animation_t animation_wave_solid(uint8_t start_key_index, animation_color_t wave_color) {
+    return (animation_t){
+        .type = WAVE,
+
+        .key_index = start_key_index,
+        .done      = false,
+        .ticks     = timer_read32(),
+
+        .keymap = NULL,
+
+        .hsv_colors =
+            {
+                wave_color,
+                wave_color,
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+            },
+    };
+}
+
+animation_t animation_wave_solid_2(uint8_t start_key_index, animation_color_t wave_color,
+                                   animation_color_t solid_color) {
+    return (animation_t){
+        .type = WAVE,
+
+        .key_index = start_key_index,
+        .done      = false,
+        .ticks     = timer_read32(),
+
+        .keymap = NULL,
+
+        .hsv_colors =
+            {
+                wave_color,
+                solid_color,
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+            },
+    };
+}
+
+animation_t animation_shimmer(void) {
+    return (animation_t){
+        .type = SHIMMER,
+
+        .key_index = 0,
+        .done      = false,
+        .ticks     = timer_read32(),
+
+        .keymap = NULL,
+
+        .hsv_colors =
+            {
+                animation_color_special(ANIMATION_COLOR_SHIMMER),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+                animation_color_special(ANIMATION_COLOR_TRANS),
+            },
+    };
+}
 
 void sgv_animation_preinit(void) {
     // Free not needed
@@ -406,6 +597,9 @@ void sgv_animation_init(void) {
     }
 
     clear_all_state();
+
+    // L, L, L
+    sgv_animation_add_startup_animation(70, 70, 70);
 }
 
 bool sgv_animation_update(effect_params_t *params) {
@@ -447,9 +641,11 @@ bool sgv_animation_update(effect_params_t *params) {
                 // Fallthrough to remove the current element too if we're APPLY_NEW_BASE
                 [[fallthrough]];
             case APPLY_CLEAR_THIS:
-                shift(&scrap);
-                --it; // This _could_ underflow but it'll be fixed before next loop
-                --limit;
+                if (it == 0) {
+                    shift(&scrap);
+                    --it; // This _could_ underflow but it'll be fixed before next loop
+                    --limit;
+                }
                 break;
             case BECOME_SHIMMER:
                 while (it != 0) {
@@ -458,8 +654,12 @@ bool sgv_animation_update(effect_params_t *params) {
                     --limit;
                 }
                 shift(&scrap);
-                scrap.done = false;
-                scrap.type = SHIMMER;
+                scrap.done                                   = false;
+                scrap.type                                   = SHIMMER;
+                scrap.hsv_colors[ANIMATION_HSV_COLOR_BASE]   = scrap.hsv_colors[ANIMATION_HSV_COLOR_RESULT];
+                scrap.hsv_colors[ANIMATION_HSV_COLOR_BASE_N] = scrap.hsv_colors[ANIMATION_HSV_COLOR_RESULT_N];
+                scrap.hsv_colors[ANIMATION_HSV_COLOR_RESULT] = scrap.hsv_colors[ANIMATION_HSV_COLOR_RESULT_N] =
+                    animation_color_hsv((HSV){RGB_OFF});
                 unshift(scrap);
                 break;
         }
@@ -483,3 +683,64 @@ void sgv_animation_add_animation(animation_t animation) {
 
     push(animation);
 };
+
+static const uint16_t startup_animation_keys[][MATRIX_ROWS][MATRIX_COLS] = {
+    [0] =
+        {
+            [0] = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2},
+            [1] = {2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+            [2] = {2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+            [3] = {2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+            [4] = {2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+            [5] = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2},
+        },
+    [1] =
+        {
+            [0] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+            [1] = {0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0},
+            [2] = {0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0},
+            [3] = {0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0},
+            [4] = {0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0},
+            [5] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        },
+};
+
+void sgv_animation_add_startup_animation(uint8_t first_wave_start, uint8_t second_wave_start, uint8_t cleanup_start) {
+    uint32_t time = timer_read32();
+
+    animation_t anim;
+
+    // TODO Make animations start after previous one is done?
+    anim        = animation_wave_solid(first_wave_start, animation_color_special(ANIMATION_COLOR_SHIMMER));
+    anim.keymap = &startup_animation_keys[0];
+    anim.ticks  = time;
+    sgv_animation_add_animation(anim);
+
+    anim        = animation_wave_solid(second_wave_start, animation_color_special(ANIMATION_COLOR_SHIMMER));
+    anim.keymap = &startup_animation_keys[1];
+    anim.hsv_colors[ANIMATION_HSV_COLOR_BASE_N] = anim.hsv_colors[ANIMATION_HSV_COLOR_RESULT_N] =
+        animation_color_hsv((HSV){RGB_OFF});
+    anim.ticks = time + 800; // TODO Unify time + speed somehow
+    sgv_animation_add_animation(anim);
+
+    anim       = animation_wave_solid(cleanup_start, animation_color_hsv((HSV){RGB_OFF}));
+    anim.ticks = time + 1600;
+    sgv_animation_add_animation(anim);
+
+    anim       = animation_wave_solid(cleanup_start, animation_color_special(ANIMATION_COLOR_SHIMMER));
+    anim.ticks = time + 1800;
+    sgv_animation_add_animation(anim);
+
+    anim       = animation_wave_solid(cleanup_start, animation_color_hsv((HSV){RGB_OFF}));
+    anim.ticks = time + 2000;
+    sgv_animation_add_animation(anim);
+}
+
+void sgv_animation_reset(void) {
+    animation_t scrap;
+    while (!empty()) {
+        pop(&scrap);
+    }
+
+    clear_all_state();
+}

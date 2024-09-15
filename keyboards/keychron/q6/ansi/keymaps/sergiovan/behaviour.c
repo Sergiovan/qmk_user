@@ -38,85 +38,40 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 rgb_matrix_mode(RGB_MATRIX_CUSTOM_sgv_custom_rgb);
             }
             return false;
-        case SGV_TEST_SINGLE:
+        case SGV_CLK:
             if (record->event.pressed) {
-                sgv_animation_add_animation((animation_t){
-                    .type         = WAVE,
-                    .payload_type = PAYLOAD_COLOR_SHIMMER,
-
-                    .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Earth
-                    .ticks     = timer_read32(),
-                    .done      = false,
-
-                    .keymap = NULL,
-
-                    // .hsv_color = (HSV){random8(), 255, 255},
-                    .raw = 0,
-                });
+                sgv_animation_reset();
+#if DEBUG_FUNCTIONS
+                for (int i = 0; i < 10; ++i) {
+                    LED_DEBUG(i, RGB_OFF);
+                }
+#endif
             }
             break;
         case SGV_TEST_SOLID:
             if (record->event.pressed) {
-                // sgv_animation_add_animation((animation_t){
-                //     .type         = SHIMMER,
-                //     .payload_type = PAYLOAD_NONE,
-
-                //     .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Sparkles
-                //     .ticks     = timer_read32(),
-                //     .done      = false,
-
-                //     .keymap = NULL,
-
-                //     .raw = 0,
-                // });
-                sgv_animation_add_animation((animation_t){
-                    .type         = WAVE_SOLID,
-                    .payload_type = PAYLOAD_COLOR_HSV,
-
-                    .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Sparkles
-                    .ticks     = timer_read32(),
-                    .done      = false,
-
-                    .keymap = NULL,
-
-                    .hsv_color = (HSV){random8(), 255, 255},
-                    // .raw = 0,
-                });
+                sgv_animation_add_startup_animation(70, 70, 70);
             }
             break;
         case SGV_TEST_WAVE:
             if (record->event.pressed) {
-                sgv_animation_add_animation((animation_t){
-                    .type         = WAVE_SOLID_2,
-                    .payload_type = PAYLOAD_COLOR_SHIMMER_SECOND,
-
-                    .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Rocket
-                    .ticks     = timer_read32(),
-                    .done      = false,
-
-                    .keymap = NULL,
-
-                    .hsv_color = (HSV){random8(), 255, 255},
-                    // .raw = 0,
-                });
+                sgv_animation_add_animation(animation_wave_solid_2(
+                    g_led_config.matrix_co[record->event.key.row][record->event.key.col],
+                    animation_color_hsv((HSV){random8(), 255, 255}), animation_color_special(ANIMATION_COLOR_SHIMMER)));
+            }
+            break;
+        case SGV_TEST_SINGLE:
+            if (record->event.pressed) {
+                sgv_animation_add_animation(
+                    animation_wave(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
+                                   animation_color_hsv((HSV){random8(), 0xFF, 0xFF})));
             }
             break;
         case SGV_TEST_CLEAR:
             if (record->event.pressed) {
-                sgv_animation_add_animation((animation_t){
-                    .type         = WAVE_SOLID,
-                    .payload_type = PAYLOAD_COLOR_HSV,
-
-                    .key_index = g_led_config.matrix_co[record->event.key.row][record->event.key.col], // Pica
-                    .ticks     = timer_read32(),
-                    .done      = false,
-
-                    .keymap = NULL,
-
-                    .hsv_color = (HSV){0, 0, 0}});
-            }
-            for (int i = 0; i < 10; ++i) {
-                LED_DEBUG(i, HSV_BLACK);
+                sgv_animation_add_animation(
+                    animation_wave_solid(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
+                                         animation_color_hsv((HSV){RGB_OFF})));
             }
             break;
         default:
@@ -132,47 +87,45 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 layer_state_t layer_state_set_user(layer_state_t state) {
     layer_state_t highest = get_highest_layer(state);
     if (highest == BASE) {
-        sgv_animation_add_animation((animation_t){
-            .type         = WAVE_SOLID,
-            .payload_type = PAYLOAD_NONE,
-
-            .key_index = g_led_config.matrix_co[5][12], // FN
-            .ticks     = timer_read32(),
-            .done      = false,
-
-            .keymap = NULL,
-
-            .raw = 0,
-        });
+        sgv_animation_add_animation(animation_wave_solid(g_led_config.matrix_co[5][12], // FN
+                                                         animation_color_hsv((HSV){RGB_OFF})));
     } else if (highest == FN) {
-        sgv_animation_add_animation((animation_t){
-            .type         = WAVE_SOLID,
-            .payload_type = PAYLOAD_COLOR_HSV,
+        animation_t anim                            = animation_wave_solid(g_led_config.matrix_co[5][12], // FN
+                                                                           animation_color_hsv((HSV){HSV_RED}));
+        anim.keymap                                 = &keymaps[FN];
+        anim.hsv_colors[ANIMATION_HSV_COLOR_BASE_N] = anim.hsv_colors[ANIMATION_HSV_COLOR_RESULT_N] =
+            animation_color_hsv((HSV){HSV_BLUE});
 
-            .key_index = g_led_config.matrix_co[5][12], // FN
-            .ticks     = timer_read32(),
-            .done      = false,
-
-            .keymap = &keymaps[FN],
-
-            .hsv_color = (HSV){HSV_RED},
-        });
+        sgv_animation_add_animation(anim);
     } else if (highest == SECRET) {
-        sgv_animation_add_animation((animation_t){
-            .type         = WAVE_SOLID,
-            .payload_type = PAYLOAD_COLOR_SHIMMER,
+        layer_state_t current = get_highest_layer(layer_state);
 
-            .key_index = g_led_config.matrix_co[5][12], // FN
-            .ticks     = timer_read32(),
-            .done      = false,
+        if (current == FN) {
+            animation_t anim = animation_wave_solid(g_led_config.matrix_co[5][12], // FN
+                                                    animation_color_special(ANIMATION_COLOR_SHIMMER));
 
-            .keymap = &keymaps[SECRET],
+            anim.keymap                                   = &keymaps[SECRET];
+            anim.hsv_colors[ANIMATION_HSV_COLOR_BASE_N]   = animation_color_special(ANIMATION_COLOR_RANDOM);
+            anim.hsv_colors[ANIMATION_HSV_COLOR_RESULT_N] = animation_color_hsv((HSV){RGB_OFF});
 
-            .raw = 0,
-        });
+            sgv_animation_add_animation(anim);
+        }
     }
 
     return state;
+}
+
+bool shutdown_user(bool jump_to_bootloader) {
+    // Not provided by any header, but explicitly supported (the main example of shutdown_user
+    // does something like this)
+    extern void rgb_matrix_update_pwm_buffers(void);
+
+    sgv_animation_add_animation(animation_clear());
+
+    rgb_matrix_set_color_all(RGB_OFF);
+    rgb_matrix_update_pwm_buffers(); // Actually turn the things off please
+
+    return false;
 }
 
 #if DEBUG_FUNCTIONS
@@ -181,8 +134,7 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         return false;
     }
 
-    rgb_matrix_set_color(g_led_config.matrix_co[5][18], 0xFF * rgb_matrix_is_enabled(), 0xFF * rgb_matrix_is_enabled(),
-                         rgb_matrix_get_val());
+    rgb_matrix_set_color(g_led_config.matrix_co[5][18], 0xFF, 0xFF, 0xFF);
 
     switch (get_highest_layer(layer_state)) {
         case BASE:
@@ -200,9 +152,11 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     }
 
     for (uint8_t i = 0; i < 10; ++i) {
-        if (i >= led_min && i < led_max && debug_leds[i].v) {
-            RGB color = hsv_to_rgb(debug_leds[i]);
-            rgb_matrix_set_color(g_led_config.matrix_co[1][1 + i], color.r, color.g, color.b);
+        RGB color = hsv_to_rgb(debug_leds[i]);
+        if (i == 0) {
+            rgb_matrix_set_color(30, color.r, color.g, color.b);
+        } else {
+            rgb_matrix_set_color(20 + i, color.r, color.g, color.b);
         }
     }
 
