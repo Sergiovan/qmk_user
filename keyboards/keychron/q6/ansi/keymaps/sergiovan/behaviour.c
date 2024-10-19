@@ -96,6 +96,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                                          animation_color_hsv(RGB_OFF)));
             }
             break;
+        case SGV_CAPS:
+            if (record->event.pressed) {
+                sgv_animation_add_animation(
+                    animation_wave(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
+                                   animation_color_hsv(random8(), 0xFF, 0xFF)));
+            }
+            break;
         default:
             if (!record->event.pressed) {
                 clear_oneshot_layer_state(ONESHOT_PRESSED);

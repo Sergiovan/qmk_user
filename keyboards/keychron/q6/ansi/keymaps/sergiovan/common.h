@@ -48,6 +48,7 @@ enum custom_keycodes {
     SGV_RCKT, /* Custom keycode that goes on the rocket key */
     SGV_ERTH, /* Custom keycode that goes on the earth key */
     SGV_SPDE, /* Custom keycode that goes on the spade key */
+    SGV_CAPS, /* Custom keycode that goes on capslock */
 
     SGV_COUNT, /* Layer count enum value for convenience */
 };
