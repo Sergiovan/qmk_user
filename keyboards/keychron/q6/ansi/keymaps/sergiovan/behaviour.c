@@ -1,6 +1,6 @@
 #include QMK_KEYBOARD_H // A little comment to avoid weird underlines :)
-#include "common.h"
-#include "animation.h"
+#include "common/common.h"
+#include "animation/animation.h"
 #include "lib/lib8tion/lib8tion.h"
 
 #if DEBUG_FUNCTIONS

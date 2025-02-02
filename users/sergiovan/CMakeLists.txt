@@ -16,11 +16,11 @@ find_package(GTest REQUIRED)
 enable_testing()
 
 set(FILES_UNDER_TEST
-  circular_buffer/circular_buffer.c
+  src/circular_buffer/circular_buffer.c
 )
 
 set(FILES_GTEST
-  circular_buffer/circular_buffer_tests.cpp
+  src/circular_buffer/circular_buffer_tests.cpp
 )
 
 add_executable(circular_buffer_test
@@ -69,8 +69,8 @@ include(GoogleTest)
 gtest_discover_tests(circular_buffer_test)
 
 add_executable(perlin_noise_test
-  "noise/noise_gen.c"
-  "noise/noise_gen.test.c"
+  "src/noise/noise_gen.c"
+  "src/noise/noise_gen.test.c"
 )
 
 target_include_directories(perlin_noise_test

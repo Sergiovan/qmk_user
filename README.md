@@ -6,7 +6,16 @@ I'm not a keyboard enthusiast so please forgive my transgressions (or don't, tha
 
 ## Installation
 
-Symlink `users/sergiovan` and `keyboards/**/sergiovan` to their appropriate locations in a working [qmk_firmware](https://github.com/qmk/qmk_firmware) clone, set your keyboard settings and compile.
+Symlink `users/sergiovan/src` to `users/sergiovan` and `keyboards/**/sergiovan` to their appropriate locations in a working [qmk_firmware](https://github.com/qmk/qmk_firmware) clone, set your keyboard settings and compile.
+
+## Compile
+
+```sh
+mkdir build
+cd build
+cmake .. -DQMK_LOCATION=path/to/qmk
+cmake --build .
+```
 
 ## Running Tests
 

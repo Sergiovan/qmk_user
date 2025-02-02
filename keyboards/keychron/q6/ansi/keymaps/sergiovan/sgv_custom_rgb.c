@@ -4,7 +4,7 @@
 #    include "lib/lib8tion/lib8tion.h"
 #endif
 
-#include "animation.h"
+#include "animation/animation.h"
 
 static bool sgv_custom_rgb(effect_params_t* params) {
     if (params->init) {

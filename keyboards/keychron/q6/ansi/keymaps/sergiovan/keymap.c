@@ -15,7 +15,7 @@
  */
 
 #include QMK_KEYBOARD_H // A little comment to avoid weird underlines :)
-#include "common.h"
+#include "common/common.h"
 
 // clang-format off
 

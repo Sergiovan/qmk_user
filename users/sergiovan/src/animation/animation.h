@@ -1,5 +1,5 @@
 #pragma once
-#include "common.h"
+#include "common/common.h"
 
 /**
  * @brief Animation type, outlining the general animation behaviour
