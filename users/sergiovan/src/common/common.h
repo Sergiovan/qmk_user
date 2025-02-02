@@ -76,7 +76,7 @@ extern const uint16_t PROGMEM keymaps[LAYER_COUNT][MATRIX_ROWS][MATRIX_COLS];
  */
 enum custom_keycodes {
     SGV_FN = SAFE_RANGE, /* Special FN functionality that allows me to tap twice for secret layer */
-    SGV_RGB,             /* Set RGB mode to mine */
+    SGV_EFFT,            /* Set effect mode to mine */
     SGV_CLK,             /* Clear entire animation stack */
 
     SGV_SPRK, /* Custom keycode that goes on the sparkles key */
@@ -85,5 +85,9 @@ enum custom_keycodes {
     SGV_SPDE, /* Custom keycode that goes on the spade key */
     SGV_CAPS, /* Custom keycode that goes on capslock */
 
+    SGV_PRSC, /* Custom keycode that goes on the screenshot */
+    SGV_MUTE, /* Custom keycode that goes on the mute */
+
     SGV_COUNT, /* Layer count enum value for convenience */
+    /* COPIES GO HERE */
 };

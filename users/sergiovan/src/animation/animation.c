@@ -170,12 +170,27 @@ static inline uint8_t get_perlin(uint8_t x, uint8_t y, uint32_t t) {
     uint32_t medium = ((t * 320) >> 8);
     uint32_t fast   = ((t * 384) >> 8);
 
+#if USING_RGB
+
     /* 0x666 is ~0.025 in u32q16 */
     uint16_t perlin_1 = perlin2d_fixed(x + slow, y + fast, 0x666);
     uint16_t perlin_2 = perlin2d_fixed((224 - x) + medium, y + slow, 0x666);
     uint16_t perlin_3 = perlin2d_fixed(x + fast, (64 - y) + medium, 0x666);
 
     return (perlin_1 + perlin_2 + perlin_3) & 0xFF;
+#else
+    /* 0x1666 is ~0.0875 in u32q16 */
+    uint16_t perlin_1 = perlin2d_fixed(x + slow, y + fast, 0x1666);
+    uint16_t perlin_2 = perlin2d_fixed((224 - x) + medium, y + slow, 0x1666);
+    uint16_t perlin_3 = perlin2d_fixed(x + fast, (64 - y) + medium, 0x1666);
+
+    uint32_t perlin = perlin_1 + perlin_2 + perlin_3;
+
+    perlin *= 0xE0; // This is 0xE0 / 0x100 in u16q8
+    perlin /= 0x0300;
+
+    return perlin & 0xFF;
+#endif
 }
 
 /**

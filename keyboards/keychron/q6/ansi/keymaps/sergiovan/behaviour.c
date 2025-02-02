@@ -1,15 +1,16 @@
 #include QMK_KEYBOARD_H // A little comment to avoid weird underlines :)
-#include "common/common.h"
 #include "animation/animation.h"
+#include "common/common.h"
 #include "lib/lib8tion/lib8tion.h"
 
 #if DEBUG_FUNCTIONS
-HSV debug_leds[10] = {0};
+COLOR debug_leds[10] = {0};
 #endif
 
 /**
  * @brief Called after keyboard is initialized.
- * Sets layer to BASE, RGB mode to my custom mode, and pre-initializes the animation stack
+ * Sets layer to BASE, RGB mode to my custom mode, and pre-initializes the
+ * animation stack
  */
 void keyboard_post_init_user(void) {
     default_layer_set(1ULL << BASE);
@@ -19,9 +20,11 @@ void keyboard_post_init_user(void) {
 
 /**
  * @brief Called when the switch on the back of the keyboard is switched
- * Currently only disables doing anything with the switch because I don't want it to be used
+ * Currently only disables doing anything with the switch because I don't want
+ * it to be used
  *
- * @param index Which switch was touched. This keyboard only has one switch, so it'll always be 0
+ * @param index Which switch was touched. This keyboard only has one switch, so
+ * it'll always be 0
  * @param active If the switch is now active or inactive
  * @return true Continue with the _kb default dip switch handler
  * @return false Do not
@@ -34,8 +37,8 @@ bool dip_switch_update_user(uint8_t index, bool active) {
 }
 
 /**
- * @brief Called when a key has been activated or a keycode is about to be sent to the computer
- * Handles layer switching and custom keys
+ * @brief Called when a key has been activated or a keycode is about to be sent
+ * to the computer Handles layer switching and custom keys
  *
  * @param keycode The key code that has been activated
  * @param record Information about the activation
@@ -55,7 +58,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             break;
         case SGV_FN:
             break;
-        case SGV_RGB:
+        case SGV_EFFT:
             if (record->event.pressed) {
                 rgb_matrix_mode(RGB_MATRIX_CUSTOM_sgv_custom_rgb);
             }
@@ -115,7 +118,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
 /**
  * @brief Called when the layer is about to be changed
- * Currently plays animations when switching layers to show which keys are mapped
+ * Currently plays animations when switching layers to show which keys are
+ * mapped
  *
  * @param state The layer about to be entered
  * @return layer_state_t The new layer to set
@@ -160,8 +164,8 @@ layer_state_t layer_state_set_user(layer_state_t state) {
  * @return false Do not
  */
 bool shutdown_user(bool jump_to_bootloader) {
-    // Not provided by any header, but explicitly supported (the main example of shutdown_user
-    // does something like this)
+    // Not provided by any header, but explicitly supported (the main example of
+    // shutdown_user does something like this)
     extern void rgb_matrix_update_pwm_buffers(void);
 
     sgv_animation_add_animation(animation_clear());
@@ -174,8 +178,8 @@ bool shutdown_user(bool jump_to_bootloader) {
 
 #if DEBUG_FUNCTIONS
 /**
- * @brief Called every frame to handle LEDs that go over the current animation/mode
- * Currently used for debugging purposes only
+ * @brief Called every frame to handle LEDs that go over the current
+ * animation/mode Currently used for debugging purposes only
  *
  * @param led_min Smallest LED in the current LED handling batch
  * @param led_max Largest LED in the current LED handling batch
@@ -217,8 +221,8 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
 }
 #else
 /**
- * @brief Called every frame to handle LEDs that go over the current animation/mode
- * Currently only used to suppress _kb handler
+ * @brief Called every frame to handle LEDs that go over the current
+ * animation/mode Currently only used to suppress _kb handler
  *
  * @param led_min Smallest LED in the current LED handling batch
  * @param led_max Largest LED in the current LED handling batch
