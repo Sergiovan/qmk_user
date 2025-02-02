@@ -1,6 +1,10 @@
 #pragma once
 #include "common/common.h"
 
+#ifndef COLOR
+#    error COLOR was not defined, animation header cannot be used
+#endif
+
 /**
  * @brief Animation type, outlining the general animation behaviour
  */
@@ -30,7 +34,7 @@ typedef enum animation_color_special : uint8_t {
  * @brief Animation color, that can be either an HSV or a special color
  */
 typedef struct animation_color {
-    HSV                       hsv;
+    COLOR                     color;
     animation_color_special_e special;
 } animation_color_t;
 
@@ -64,6 +68,8 @@ typedef struct animation {
     /* Array of colors to be used by animation. See `animation_hsv_color_layer` */
     animation_color_t hsv_colors[ANIMATION_HSV_COLOR_COUNT];
 } animation_t;
+
+animation_color_t animation_color_val(uint8_t val);
 
 /**
  * @brief Creates an animation color from hsv value

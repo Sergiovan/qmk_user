@@ -3,14 +3,49 @@
 
 #define DEBUG_FUNCTIONS false
 
+#if LED_MATRIX_ENABLE
+typedef union color {
+    uint8_t h;
+    uint8_t s;
+    uint8_t v;
+} color_t;
+
+#    define USING_RGB false
+#    define COLOR color_t
+#    define MAKE_COLOR(x, ...) \
+        (COLOR) {              \
+            x                  \
+        }
+#    define COLOR_OFF 0x0
+#    define LED_COUNT LED_MATRIX_LED_COUNT
+#    define MATRIX_USE_LIMITS LED_MATRIX_USE_LIMITS
+#    define MATRIX_TEST_LED_FLAGS LED_MATRIX_TEST_LED_FLAGS
+#elif RGB_MATRIX_ENABLE
+#    define USING_RGB true
+#    define COLOR HSV
+#    define MAKE_COLOR(...) \
+        (COLOR) {           \
+            __VA_ARGS__     \
+        }
+#    define COLOR_OFF RGB_OFF
+#    define LED_COUNT RGB_MATRIX_LED_COUNT
+#    define MATRIX_USE_LIMITS RGB_MATRIX_USE_LIMITS
+#    define MATRIX_TEST_LED_FLAGS RGB_MATRIX_TEST_LED_FLAGS
+#else
+#    define USING_RGB false
+#    define COLOR
+#    define MAKE_COLOR(...)
+#    define COLOR_OFF 0x0
+#    define LED_COUNT 0
+#    define MATRIX_USE_LIMITS
+#    define MATRIX_TEST_LED_FLAGS
+#endif
+
 #if DEBUG_FUNCTIONS
 
-extern HSV debug_leds[10];
+extern COLOR debug_leds[10];
 
-#    define LED_DEBUG(x, ...)   \
-        debug_leds[x] = (HSV) { \
-            __VA_ARGS__         \
-        }
+#    define LED_DEBUG(x, ...) debug_leds[x] = MAKE_COLOR(__VA_ARGS__)
 
 #else
 
