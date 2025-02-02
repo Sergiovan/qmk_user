@@ -61,6 +61,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case SGV_EFFT:
             if (record->event.pressed) {
                 rgb_matrix_mode(RGB_MATRIX_CUSTOM_sgv_custom_rgb);
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
             return false;
         case SGV_CLK:
@@ -76,6 +78,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case SGV_RCKT:
             if (record->event.pressed) {
                 sgv_animation_add_startup_animation(70, 70, 70);
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
             break;
         case SGV_SPRK:
@@ -83,6 +87,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 sgv_animation_add_animation(animation_wave_solid_2(
                     g_led_config.matrix_co[record->event.key.row][record->event.key.col],
                     animation_color_hsv(random8(), 255, 255), animation_color_special(ANIMATION_COLOR_SHIMMER)));
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
             break;
         case SGV_ERTH:
@@ -90,6 +96,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 sgv_animation_add_animation(
                     animation_wave(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
                                    animation_color_hsv(random8(), 0xFF, 0xFF)));
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
             break;
         case SGV_SPDE:
@@ -97,6 +105,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 sgv_animation_add_animation(
                     animation_wave_solid(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
                                          animation_color_hsv(RGB_OFF)));
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
             break;
         case SGV_CAPS:
@@ -104,6 +114,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 sgv_animation_add_animation(
                     animation_wave(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
                                    animation_color_hsv(random8(), 0xFF, 0xFF)));
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
             break;
         default:

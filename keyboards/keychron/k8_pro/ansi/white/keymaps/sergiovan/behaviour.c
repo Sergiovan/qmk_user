@@ -3,6 +3,8 @@
 // #include "state_machine.h"
 #include "animation/animation.h"
 #include "common/common.h"
+#include "deferred_exec.h"
+#include "state_machine.h"
 #include "lib/lib8tion/lib8tion.h"
 
 // #define DEBUG_FUNCTIONS true
@@ -11,13 +13,29 @@
 COLOR debug_leds[10] = {0};
 #endif
 
-// static state_machine_t state_machine;
+static state_machine_t state_machine;
+
+uint32_t keep_awake_cb(uint32_t trigger_time, void *cb_arg) {
+    // TODO Send key
+    const uint16_t codes[] = {
+        KC_LALT, KC_LCTL, KC_LSFT, KC_RALT, KC_RCTL, KC_RSFT,
+    };
+
+    const uint8_t codes_size = sizeof codes / sizeof(uint16_t);
+
+    tap_code16(codes[random8_max(codes_size)]);
+
+    animation_t anim = animation_solid_key(random8_max(LED_COUNT), random8() & 1 ? 0x80 : 00, 0xFF, 0xFF);
+    anim.ticks += (random16() >> 5);
+    sgv_animation_add_animation(anim);
+
+    return (random16() >> 1) + 500;
+}
 
 void keyboard_post_init_user(void) {
     default_layer_set(1ULL << BASE);
     led_matrix_mode_noeeprom(LED_MATRIX_CUSTOM_sgv_custom_led);
-    // led_matrix_mode_noeeprom(LED_MATRIX_CUSTOM_custom_quiet);
-    // state_machine_init(&state_machine);
+    state_machine_init(&state_machine);
     sgv_animation_preinit();
 }
 
@@ -29,10 +47,27 @@ bool dip_switch_update_user(uint8_t index, bool active) {
 }
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-    // if (led_matrix_get_mode() == LED_MATRIX_CUSTOM_custom_quiet && record->event.pressed) {
-    //     state_cb_t f = state_machine_advance(&state_machine, keycode);
-    //     if (f) f();
-    // }
+    static deferred_token keep_awake_token = INVALID_DEFERRED_TOKEN;
+
+    if (keep_awake_token != INVALID_DEFERRED_TOKEN && record->event.pressed) {
+        // Cancel idle mode when a key is pressed
+        cancel_deferred_exec(keep_awake_token);
+        keep_awake_token = INVALID_DEFERRED_TOKEN;
+        sgv_animation_add_animation(
+            animation_wave_solid(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
+                                 animation_color_special(ANIMATION_COLOR_SHIMMER)));
+
+        animation_t anim = animation_wave_solid(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
+                                                animation_color_val(0x00));
+        anim.ticks += 1000;
+        sgv_animation_add_animation(anim);
+    }
+
+    if (led_matrix_get_mode() == LED_MATRIX_CUSTOM_sgv_custom_led && record->event.pressed) {
+        state_cb_t f = state_machine_advance(&state_machine, keycode);
+        if (f) f();
+    }
+
     switch (keycode) {
         case LT(FN, SGV_FN):
             if (record->tap.count && record->event.pressed) {
@@ -48,6 +83,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case SGV_EFFT:
             if (record->event.pressed) {
                 led_matrix_mode(LED_MATRIX_CUSTOM_sgv_custom_led);
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
             return false;
         case SGV_CAPS:
@@ -55,20 +92,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 sgv_animation_add_animation(
                     animation_wave(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
                                    animation_color_val((random8() / 2) + 0x80)));
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
-            break;
+            return false;
         case SGV_PRSC:
             if (record->event.pressed) {
-                sgv_animation_add_animation(animation_wave_solid_2(
-                    g_led_config.matrix_co[record->event.key.row][record->event.key.col],
-                    animation_color_val(COLOR_OFF), animation_color_special(ANIMATION_COLOR_SHIMMER)));
-            }
-            break;
-        case SGV_MUTE:
-            if (record->event.pressed) {
-                sgv_animation_add_animation(
-                    animation_wave_solid(g_led_config.matrix_co[record->event.key.row][record->event.key.col],
-                                         animation_color_val(COLOR_OFF)));
+                keep_awake_token = defer_exec(1000, keep_awake_cb, NULL);
+            } else {
+                clear_oneshot_layer_state(ONESHOT_PRESSED);
             }
             break;
         default:
